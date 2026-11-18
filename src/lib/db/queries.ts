@@ -17,7 +17,7 @@ export async function getDashboardSummary(tahun: number | null): Promise<Dashboa
       ) AS belum_ditindaklanjuti,
 
       COUNT(*) FILTER (
-        WHERE status_verifikasi = 'Belum Sesuai'
+        WHERE status_verifikasi = 'Tidak Sesuai'
       ) AS belum_sesuai,
 
       COUNT(*) FILTER (
@@ -55,9 +55,10 @@ export interface TindakLanjutRow {
   aksi_tindak_lanjut: string | null;
   jumlah_setor: number;
   sisa: number;
-  status_verifikasi: "Sesuai" | "Belum Sesuai" | null;
+  status_verifikasi: "Sesuai" | "Tidak Sesuai" | null;
   status_tindak_lanjut: string;
   created_at: string;
+  laporanId: string | null;
 }
 
 export interface SuratTugasData {
@@ -80,18 +81,23 @@ export async function getSuratTugasByYear(tahun: number): Promise<SuratTugasData
 export async function getTindakLanjutByYear(tahun: number): Promise<TindakLanjutRow[]> {
   const result = await sql`
     SELECT
-      temuan_id,
-      kondisi,
-      rekomendasi,
-      nilai_temuan,
-      aksi_tindak_lanjut,
-      jumlah_setor,
-      sisa,
-      status_verifikasi,
-      status_tindak_lanjut
-    FROM v_monitoring_tindak_lanjut
-    WHERE tahun = ${tahun}
-    ORDER BY temuan_id DESC
+      v.temuan_id,
+      v.kondisi,
+      v.rekomendasi,
+      v.nilai_temuan,
+      v.aksi_tindak_lanjut,
+      v.jumlah_setor,
+      v.sisa,
+      v.status_verifikasi,
+      v.status_tindak_lanjut,
+      t.created_at
+    FROM v_monitoring_tindak_lanjut v
+    INNER JOIN temuan t
+      ON t.id = v.temuan_id
+    WHERE v.tahun = ${tahun}
+    ORDER BY
+      t.created_at ASC,
+      v.temuan_id ASC
   `;
 
   return result.map((row) => ({
@@ -102,8 +108,9 @@ export async function getTindakLanjutByYear(tahun: number): Promise<TindakLanjut
     aksi_tindak_lanjut: row.aksi_tindak_lanjut ? String(row.aksi_tindak_lanjut) : null,
     jumlah_setor: Number(row.jumlah_setor ?? 0),
     sisa: Number(row.sisa ?? 0),
-    status_verifikasi: (row.status_verifikasi as "Sesuai" | "Belum Sesuai" | null) ?? null,
+    status_verifikasi: (row.status_verifikasi as "Sesuai" | "Tidak Sesuai" | null) ?? null,
     status_tindak_lanjut: String(row.status_tindak_lanjut),
-    created_at: "",
+    created_at: String(row.created_at),
+    laporanId: row.laporan_id ? String(row.laporan_id) : null,
   }));
 }

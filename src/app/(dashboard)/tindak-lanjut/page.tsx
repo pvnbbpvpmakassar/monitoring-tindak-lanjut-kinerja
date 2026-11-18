@@ -1,7 +1,12 @@
 import { connection } from "next/server";
 import type { ReactNode } from "react";
+import EditTemuanModal from "@/components/tindak-lanjut/EditTemuanModal";
+import HapusTemuanButton from "@/components/tindak-lanjut/HapusTemuanButton";
+import TindakLanjutButton from "@/components/tindak-lanjut/TindakLanjutButton";
+import BuktiDukungList from "@/components/tindak-lanjut/BuktiDukungList";
+import StatusVerifikasiControl from "@/components/tindak-lanjut/StatusVerifikasiControl";
 
-import { ArrowDownRight, ArrowUpRight, ClipboardList, Wallet, ChevronDown, FileText, MessageSquareText } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, ClipboardList, Wallet, FileText } from "lucide-react";
 
 import SuratTugasForm from "@/components/tindak-lanjut/SuratTugasForm";
 import TambahTemuanModal from "@/components/tindak-lanjut/TambahTemuanModal";
@@ -94,6 +99,8 @@ export default async function TindakLanjutPage({ searchParams }: PageProps) {
         </div>
 
         {/* Daftar Card */}
+
+        {/* Daftar Card */}
         {data.length === 0 ? (
           <div className="flex flex-col items-center px-5 py-16 text-center">
             <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
@@ -105,79 +112,55 @@ export default async function TindakLanjutPage({ searchParams }: PageProps) {
             <p className="mt-2 max-w-md text-sm leading-6 text-slate-500">Belum terdapat temuan yang tercatat untuk tahun {selectedYear}. Data akan muncul di sini setelah temuan ditambahkan.</p>
           </div>
         ) : (
-          <div className="space-y-4 bg-slate-50/60 p-4 sm:p-5">
+          <div className="space-y-5 bg-slate-50/60 p-4 sm:p-5">
             {data.map((item, index) => (
-              <article key={item.id} className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition hover:border-slate-300 hover:shadow-md">
-                {/* Card Header */}
-                <div className="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+              <div key={item.id} className="space-y-3">
+                {/* Identitas Temuan dan Aksi */}
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#15406A]/5 text-sm font-bold text-[#15406A]">{String(index + 1).padStart(2, "0")}</div>
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#15406A] text-sm font-bold text-white">{String(index + 1).padStart(2, "0")}</div>
 
-                    <div></div>
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-800">Temuan #{String(index + 1).padStart(3, "0")}</h3>
+
+                      <p className="text-xs text-slate-400">Tahun Anggaran {selectedYear}</p>
+                    </div>
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                    <StatusBadge status={item.status_tindak_lanjut} />
+                  <div className="flex items-center gap-2">
+                    <EditTemuanModal id={item.id} kondisi={item.kondisi} rekomendasi={item.rekomendasi} nilaiTemuan={item.nilai_temuan} />
 
-                    <VerificationBadge status={item.status_verifikasi} />
+                    <HapusTemuanButton id={item.id} nomorTemuan={`Temuan #${String(index + 1).padStart(3, "0")}`} />
                   </div>
                 </div>
 
-                {/* Card Body */}
-                <div className="space-y-5 p-4 sm:p-5">
-                  {/* Kondisi Temuan */}
-                  <div>
-                    <div className="mb-2 flex items-center gap-2">
-                      <FileText size={16} className="text-[#15406A]" />
-
-                      <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Kondisi Temuan</h4>
-                    </div>
-
-                    <p className="whitespace-pre-line text-sm leading-6 text-slate-700">{item.kondisi}</p>
-                  </div>
-
-                  {/* Financial Summary */}
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                    <FinancialItem label="Nilai Temuan" value={formatRupiah(item.nilai_temuan)} />
-
-                    <FinancialItem label="Jumlah Setor" value={formatRupiah(item.jumlah_setor)} valueClass="text-emerald-700" />
-
-                    <FinancialItem label="Sisa Kewajiban" value={formatRupiah(Math.max(item.sisa, 0))} valueClass={item.sisa > 0 ? "text-rose-600" : "text-emerald-700"} />
-
-                    <FinancialItem
-                      label="Progres Penyetoran"
-                      value={`${item.nilai_temuan > 0 ? Math.min((item.jumlah_setor / item.nilai_temuan) * 100, 100).toFixed(1) : item.jumlah_setor > 0 ? "100.0" : "0.0"}%`}
-                      showProgress
-                      progress={item.nilai_temuan > 0 ? Math.min((item.jumlah_setor / item.nilai_temuan) * 100, 100) : item.jumlah_setor > 0 ? 100 : 0}
-                    />
-                  </div>
-
-                  {/* Expandable Details */}
-                  <details className="group border-t border-slate-100 pt-4">
-                    <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-lg py-2 transition hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
-                      <div className="flex items-center gap-2">
-                        <MessageSquareText size={17} className="text-[#15406A]" />
-
-                        <span className="text-sm font-semibold text-[#15406A]">Lihat Rekomendasi dan Aksi Tindak Lanjut</span>
+                {/* Tiga Card Utama */}
+                <div className="grid grid-cols-1 items-stretch gap-3 xl:grid-cols-12">
+                  {/* CARD 1: INFORMASI TEMUAN */}
+                  <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm xl:col-span-5">
+                    <div className="mb-4 flex items-center gap-2 border-b border-slate-100 pb-3">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 text-[#15406A]">
+                        <FileText size={18} />
                       </div>
 
-                      <ChevronDown size={18} className="shrink-0 text-slate-400 transition-transform duration-200 group-open:rotate-180" />
-                    </summary>
+                      <div>
+                        <h4 className="text-sm font-bold text-slate-800">Informasi Temuan</h4>
+                        <p className="text-xs text-slate-400">Kondisi, rekomendasi, dan nilai temuan</p>
+                      </div>
+                    </div>
 
-                    <div className="grid grid-cols-1 gap-4 pt-4 lg:grid-cols-2">
-                      {/* Rekomendasi */}
-                      <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
-                        <div className="mb-3 flex items-center gap-2">
-                          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-[#15406A]">
-                            <ClipboardList size={16} />
-                          </div>
+                    <div className="space-y-4">
+                      <div>
+                        <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">Kondisi Temuan</p>
+                        <p className="whitespace-pre-line text-sm leading-6 text-slate-700">{item.kondisi}</p>
+                      </div>
 
-                          <h4 className="text-sm font-semibold text-slate-700">Rekomendasi</h4>
-                        </div>
+                      <div className="border-t border-slate-100 pt-3">
+                        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Rekomendasi</p>
 
                         {item.rekomendasi ? (
                           <div
-                            className="text-sm leading-7 text-slate-600 [&_blockquote]:my-3 [&_blockquote]:border-l-4 [&_blockquote]:border-slate-300 [&_blockquote]:pl-3 [&_h2]:mb-2 [&_h2]:mt-4 [&_h2]:text-base [&_h2]:font-semibold [&_li]:ml-5 [&_ol]:my-2 [&_ol]:list-decimal [&_p]:mb-2 [&_ul]:my-2 [&_ul]:list-disc [&_strong]:font-semibold"
+                            className="text-sm leading-6 text-slate-600 [&_blockquote]:my-2 [&_blockquote]:border-l-4 [&_blockquote]:border-slate-300 [&_blockquote]:pl-3 [&_h2]:mb-2 [&_h2]:mt-3 [&_h2]:font-semibold [&_li]:ml-5 [&_ol]:my-2 [&_ol]:list-decimal [&_p]:mb-2 [&_ul]:my-2 [&_ul]:list-disc [&_strong]:font-semibold"
                             dangerouslySetInnerHTML={{
                               __html: item.rekomendasi,
                             }}
@@ -187,22 +170,104 @@ export default async function TindakLanjutPage({ searchParams }: PageProps) {
                         )}
                       </div>
 
-                      {/* Aksi Tindak Lanjut */}
-                      <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
-                        <div className="mb-3 flex items-center gap-2">
-                          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700">
-                            <ArrowDownRight size={16} />
-                          </div>
-
-                          <h4 className="text-sm font-semibold text-slate-700">Aksi Tindak Lanjut</h4>
-                        </div>
-
-                        {item.aksi_tindak_lanjut ? <p className="whitespace-pre-line text-sm leading-7 text-slate-600">{item.aksi_tindak_lanjut}</p> : <p className="text-sm italic text-slate-400">Belum ada aksi tindak lanjut.</p>}
+                      <div className="rounded-lg bg-blue-50/70 p-3">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Nilai Temuan</p>
+                        <p className="mt-1 text-xl font-bold tracking-tight text-[#15406A]">{formatRupiah(item.nilai_temuan)}</p>
                       </div>
                     </div>
-                  </details>
+                  </section>
+
+                  {/* CARD 2: TINDAK LANJUT */}
+                  <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm xl:col-span-4">
+                    <div className="mb-4 flex items-center gap-2 border-b border-slate-100 pb-3">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700">
+                        <ClipboardList size={18} />
+                      </div>
+
+                      <div>
+                        <h4 className="text-sm font-bold text-slate-800">Tindak Lanjut</h4>
+                        <p className="text-xs text-slate-400">Aksi dan realisasi penyetoran</p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div>
+                        <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">Aksi Tindak Lanjut</p>
+
+                        {item.aksi_tindak_lanjut ? <p className="whitespace-pre-line text-sm leading-6 text-slate-700">{item.aksi_tindak_lanjut}</p> : <p className="text-sm italic text-slate-400">Belum ada aksi tindak lanjut.</p>}
+                      </div>
+
+                      <div className="border-t border-slate-100 pt-3">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Jumlah Setor</p>
+                        <p className="mt-1 text-lg font-bold text-emerald-700">{formatRupiah(item.jumlah_setor)}</p>
+                      </div>
+
+                      <div className="rounded-lg bg-rose-50/70 p-3">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Sisa Kewajiban</p>
+                        <p className="mt-1 text-xl font-bold text-rose-600">{formatRupiah(Math.max(item.sisa, 0))}</p>
+                      </div>
+
+                      <div>
+                        <div className="mb-2 flex items-center justify-between">
+                          <span className="text-xs font-medium text-slate-500">Progres Penyetoran</span>
+
+                          <span className="text-xs font-bold text-slate-700">{item.nilai_temuan > 0 ? Math.min((item.jumlah_setor / item.nilai_temuan) * 100, 100).toFixed(1) : item.jumlah_setor > 0 ? "100.0" : "0.0"}%</span>
+                        </div>
+
+                        <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                          <div
+                            className="h-full rounded-full bg-emerald-500 transition-all"
+                            style={{
+                              width: `${item.nilai_temuan > 0 ? Math.min((item.jumlah_setor / item.nilai_temuan) * 100, 100) : item.jumlah_setor > 0 ? 100 : 0}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <BuktiDukungList laporanId={item.laporanId} />
+
+                    <div className="m-4 flex justify-end">
+                      <TindakLanjutButton
+                        temuanId={item.id}
+                        kondisi={item.kondisi}
+                        nilaiTemuan={item.nilai_temuan}
+                        aksiTindakLanjut={item.aksi_tindak_lanjut}
+                        jumlahSetor={item.jumlah_setor}
+                        sudahAdaLaporan={item.status_tindak_lanjut === "Sudah Ditindak Lanjut"}
+                      />
+                    </div>
+                  </section>
+
+                  {/* CARD 3: STATUS */}
+                  <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm xl:col-span-3">
+                    <div className="mb-4 flex items-center gap-2 border-b border-slate-100 pb-3">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-50 text-violet-700">
+                        <ClipboardList size={18} />
+                      </div>
+
+                      <div>
+                        <h4 className="text-sm font-bold text-slate-800">Status Temuan</h4>
+                        <p className="text-xs text-slate-400">Progres dan verifikasi</p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-5">
+                      <div>
+                        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Status Tindak Lanjut</p>
+
+                        <StatusBadge status={item.status_tindak_lanjut} />
+                      </div>
+
+                      <div className="border-t border-slate-100 pt-4">
+                        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Status Verifikasi</p>
+
+                        <VerificationBadge status={item.status_verifikasi} />
+                      </div>
+                    </div>
+                  </section>
                 </div>
-              </article>
+              </div>
             ))}
           </div>
         )}
@@ -267,9 +332,9 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 /* Verification Badge */
-function VerificationBadge({ status }: { status: "Sesuai" | "Belum Sesuai" | null }) {
+function VerificationBadge({ status }: { status: "Sesuai" | "Tidak Sesuai" | null }) {
   if (!status) {
-    return <span className="inline-flex whitespace-nowrap rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-500">Belum Diverifikasi</span>;
+    return <span className="text-sm text-slate-400">—</span>;
   }
 
   return <span className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium ${status === "Sesuai" ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>{status}</span>;
