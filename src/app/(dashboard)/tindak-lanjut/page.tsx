@@ -4,7 +4,7 @@ import EditTemuanModal from "@/components/tindak-lanjut/EditTemuanModal";
 import HapusTemuanButton from "@/components/tindak-lanjut/HapusTemuanButton";
 import TindakLanjutButton from "@/components/tindak-lanjut/TindakLanjutButton";
 import BuktiDukungList from "@/components/tindak-lanjut/BuktiDukungList";
-import StatusVerifikasiControl from "@/components/tindak-lanjut/StatusVerifikasiControl";
+import VerificationStatusSelect from "@/components/tindak-lanjut/VerificationStatusSelect";
 
 import { ArrowDownRight, ArrowUpRight, ClipboardList, Wallet, FileText } from "lucide-react";
 
@@ -121,7 +121,7 @@ export default async function TindakLanjutPage({ searchParams }: PageProps) {
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#15406A] text-sm font-bold text-white">{String(index + 1).padStart(2, "0")}</div>
 
                     <div>
-                      <h3 className="text-sm font-bold text-slate-800">Temuan #{String(index + 1).padStart(3, "0")}</h3>
+                      <h3 className="text-sm font-bold text-slate-800">Temuan {String(index + 1)}</h3>
 
                       <p className="text-xs text-slate-400">Tahun Anggaran {selectedYear}</p>
                     </div>
@@ -240,6 +240,8 @@ export default async function TindakLanjutPage({ searchParams }: PageProps) {
                   </section>
 
                   {/* CARD 3: STATUS */}
+
+                  {/* CARD 3: STATUS TINDAK LANJUT DARI KABAG UMUM */}
                   <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm xl:col-span-3">
                     <div className="mb-4 flex items-center gap-2 border-b border-slate-100 pb-3">
                       <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-50 text-violet-700">
@@ -247,7 +249,8 @@ export default async function TindakLanjutPage({ searchParams }: PageProps) {
                       </div>
 
                       <div>
-                        <h4 className="text-sm font-bold text-slate-800">Status Temuan</h4>
+                        <h4 className="text-sm font-bold text-slate-800">Status Tindak Lanjut dari Kabag Umum</h4>
+
                         <p className="text-xs text-slate-400">Progres dan verifikasi</p>
                       </div>
                     </div>
@@ -260,9 +263,9 @@ export default async function TindakLanjutPage({ searchParams }: PageProps) {
                       </div>
 
                       <div className="border-t border-slate-100 pt-4">
-                        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Status Verifikasi</p>
+                        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Status Verifikasi Kabag Umum</p>
 
-                        <VerificationBadge status={item.status_verifikasi} />
+                        <VerificationStatusSelect laporanId={item.laporanId} status={item.status_verifikasi} tanggalVerifikasi={item.tanggal_verifikasi} diverifikasiOlehNama={item.diverifikasi_oleh_nama} />
                       </div>
                     </div>
                   </section>

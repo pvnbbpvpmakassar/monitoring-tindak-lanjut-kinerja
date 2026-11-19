@@ -23,9 +23,9 @@ export default async function LoginPage() {
             <ShieldCheck size={32} strokeWidth={1.8} />
           </div>
 
-          <h1 className="text-2xl font-bold tracking-tight text-[#172b42]">Monitoring Tindak Lanjut Kinerja</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-[#172b42]">Monitoring Tindak Lanjut Audit</h1>
 
-          <p className="mt-2 text-sm text-slate-500">Silakan masuk menggunakan akun Administrator.</p>
+          <p className="mt-2 text-sm text-slate-500">BBPVP Makassar</p>
         </div>
 
         <div className="rounded-2xl border border-slate-200 bg-white p-7 shadow-sm sm:p-8">

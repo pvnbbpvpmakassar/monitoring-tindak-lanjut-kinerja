@@ -96,7 +96,7 @@ export async function saveTindakLanjutAction(_previousState: TindakLanjutState, 
       RETURNING id
     `;
 
-    revalidatePath("/tindak-lanjut");
+    revalidatePath("/tindak-lanjut", "page");
     revalidatePath("/dashboard");
 
     return {

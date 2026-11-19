@@ -135,7 +135,7 @@ export default function HapusTemuanButton({
               </h2>
 
               <p className="mt-2 text-sm leading-6 text-slate-500">
-                Anda akan menghapus <strong>{nomorTemuan}</strong>.
+                Anda akan menghapus data temuan ini.
                 Tindakan ini tidak dapat dibatalkan.
               </p>
 

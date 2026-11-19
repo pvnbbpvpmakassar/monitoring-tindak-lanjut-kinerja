@@ -47,6 +47,7 @@ export async function getDashboardSummary(tahun: number | null): Promise<Dashboa
   };
 }
 
+
 export interface TindakLanjutRow {
   id: string;
   kondisi: string;
@@ -59,7 +60,10 @@ export interface TindakLanjutRow {
   status_tindak_lanjut: string;
   created_at: string;
   laporanId: string | null;
+  tanggal_verifikasi: string | null;
+  diverifikasi_oleh_nama: string | null;
 }
+
 
 export interface SuratTugasData {
   id: string;
@@ -82,6 +86,7 @@ export async function getTindakLanjutByYear(tahun: number): Promise<TindakLanjut
   const result = await sql`
     SELECT
       v.temuan_id,
+      v.laporan_id,
       v.kondisi,
       v.rekomendasi,
       v.nilai_temuan,
@@ -90,10 +95,16 @@ export async function getTindakLanjutByYear(tahun: number): Promise<TindakLanjut
       v.sisa,
       v.status_verifikasi,
       v.status_tindak_lanjut,
-      t.created_at
+      t.created_at,
+      l.tanggal_verifikasi,
+      a.nama AS diverifikasi_oleh_nama
     FROM v_monitoring_tindak_lanjut v
     INNER JOIN temuan t
       ON t.id = v.temuan_id
+    LEFT JOIN laporan_tindak_lanjut l
+      ON l.id = v.laporan_id
+    LEFT JOIN admins a
+      ON a.id = l.diverifikasi_oleh
     WHERE v.tahun = ${tahun}
     ORDER BY
       t.created_at ASC,
@@ -112,5 +123,7 @@ export async function getTindakLanjutByYear(tahun: number): Promise<TindakLanjut
     status_tindak_lanjut: String(row.status_tindak_lanjut),
     created_at: String(row.created_at),
     laporanId: row.laporan_id ? String(row.laporan_id) : null,
+    tanggal_verifikasi: row.tanggal_verifikasi ? new Date(row.tanggal_verifikasi).toISOString() : null,
+    diverifikasi_oleh_nama: row.diverifikasi_oleh_nama ? String(row.diverifikasi_oleh_nama) : null,
   }));
 }

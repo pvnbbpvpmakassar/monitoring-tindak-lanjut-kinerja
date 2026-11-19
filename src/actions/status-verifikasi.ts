@@ -4,33 +4,38 @@ import { revalidatePath } from "next/cache";
 import { sql } from "@/lib/db";
 import { getCurrentAdmin } from "@/lib/auth/session";
 
-const UUID_REGEX =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export type VerificationStatus = "Sesuai" | "Tidak Sesuai";
 
-export async function updateStatusVerifikasiAction(
-  temuanId: string,
-  status: "Sesuai" | "Tidak Sesuai"
-) {
+export interface StatusVerifikasiState {
+  status: "success" | "error";
+  message: string;
+  tanggalVerifikasi?: string;
+  diverifikasiOleh?: string;
+}
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export async function updateVerificationStatusAction(laporanId: string, status: VerificationStatus): Promise<StatusVerifikasiState> {
   const admin = await getCurrentAdmin();
 
   if (!admin) {
     return {
-      success: false,
-      message: "Sesi Admin tidak ditemukan.",
+      status: "error",
+      message: "Sesi Admin tidak ditemukan. Silakan login kembali.",
     };
   }
 
-  if (!UUID_REGEX.test(temuanId)) {
+  if (!UUID_REGEX.test(laporanId)) {
     return {
-      success: false,
-      message: "ID temuan tidak valid.",
+      status: "error",
+      message: "ID laporan tindak lanjut tidak valid.",
     };
   }
 
   if (status !== "Sesuai" && status !== "Tidak Sesuai") {
     return {
-      success: false,
-      message: "Status verifikasi tidak valid.",
+      status: "error",
+      message: "Pilihan status verifikasi tidak valid.",
     };
   }
 
@@ -42,30 +47,32 @@ export async function updateStatusVerifikasiAction(
         diverifikasi_oleh = ${admin.id},
         tanggal_verifikasi = NOW(),
         updated_at = NOW()
-      WHERE temuan_id = ${temuanId}
-      RETURNING id
+      WHERE id = ${laporanId}
+      RETURNING tanggal_verifikasi
     `;
 
     if (result.length === 0) {
       return {
-        success: false,
-        message: "Data tindak lanjut belum tersedia.",
+        status: "error",
+        message: "Laporan tindak lanjut tidak ditemukan.",
       };
     }
 
-    revalidatePath("/tindak-lanjut");
-    revalidatePath("/dashboard");
+    revalidatePath("/tindak-lanjut", "page");
+    revalidatePath("/dashboard", "page");
 
     return {
-      success: true,
-      message: `Status berhasil diubah menjadi ${status}.`,
+      status: "success",
+      message: "Status verifikasi berhasil diperbarui.",
+      tanggalVerifikasi: new Date(result[0].tanggal_verifikasi).toISOString(),
+      diverifikasiOleh: admin.nama,
     };
   } catch (error) {
     console.error("Gagal memperbarui status verifikasi:", error);
 
     return {
-      success: false,
-      message: "Terjadi kesalahan saat memperbarui status.",
+      status: "error",
+      message: "Terjadi kesalahan saat memperbarui status verifikasi.",
     };
   }
 }
