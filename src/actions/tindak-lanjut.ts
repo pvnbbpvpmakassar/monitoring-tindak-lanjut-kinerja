@@ -210,3 +210,73 @@ export async function updateTindakLanjutAction(formData: FormData): Promise<{ su
     return { success: false, message: "Terjadi kesalahan saat memperbarui tindak lanjut." };
   }
 }
+
+/** Menghapus satu laporan tindak lanjut beserta seluruh bukti dukungnya. */
+export async function deleteTindakLanjutAction(laporanId: string): Promise<{ success: boolean; message: string }> {
+  const admin = await getCurrentAdmin();
+
+  if (!admin) {
+    return { success: false, message: "Sesi Admin tidak ditemukan. Silakan login kembali." };
+  }
+
+  if (!UUID_REGEX.test(laporanId)) {
+    return { success: false, message: "ID laporan tindak lanjut tidak valid." };
+  }
+
+  try {
+    // Simpan URL blob terlebih dahulu agar file fisik dapat dibersihkan
+    // setelah penghapusan database berhasil.
+    const reportRows = await sql`
+      SELECT id, temuan_id
+      FROM laporan_tindak_lanjut
+      WHERE id = ${laporanId}
+      LIMIT 1
+    `;
+
+    if (reportRows.length === 0) {
+      return { success: false, message: "Laporan tindak lanjut tidak ditemukan." };
+    }
+
+    const evidenceRows = await sql`
+      SELECT blob_url
+      FROM bukti_dukung
+      WHERE laporan_id = ${laporanId}
+    `;
+
+    // Hapus metadata bukti dukung terlebih dahulu agar aman meskipun FK
+    // bukti_dukung.laporan_id tidak menggunakan ON DELETE CASCADE.
+    // Kedua operasi database dijalankan dalam satu transaksi.
+    const transactionResults = await sql.transaction([sql`DELETE FROM bukti_dukung WHERE laporan_id = ${laporanId}`, sql`DELETE FROM laporan_tindak_lanjut WHERE id = ${laporanId} RETURNING id, temuan_id`]);
+
+    const deletedReports = transactionResults[1] as Array<{ id: string; temuan_id: string }>;
+
+    if (!deletedReports || deletedReports.length === 0) {
+      return { success: false, message: "Laporan tindak lanjut gagal dihapus." };
+    }
+
+    // Penghapusan file fisik dilakukan setelah transaksi DB sukses.
+    // Kegagalan penghapusan Blob tidak membatalkan data DB yang sudah terhapus.
+    const blobUrls = evidenceRows.map((row) => String(row.blob_url ?? "")).filter((url) => url.length > 0);
+
+    if (blobUrls.length > 0) {
+      const { del } = await import("@vercel/blob");
+      const deleteResults = await Promise.allSettled(blobUrls.map((url) => del(url)));
+      const failedFiles = deleteResults.filter((result) => result.status === "rejected").length;
+
+      if (failedFiles > 0) {
+        console.error(`${failedFiles} file bukti dukung gagal dihapus dari Vercel Blob.`);
+      }
+    }
+
+    revalidatePath("/tindak-lanjut", "page");
+    revalidatePath("/dashboard", "page");
+
+    return {
+      success: true,
+      message: "Laporan tindak lanjut dan data bukti dukungnya berhasil dihapus.",
+    };
+  } catch (error) {
+    console.error("Gagal menghapus tindak lanjut:", error);
+    return { success: false, message: "Terjadi kesalahan saat menghapus tindak lanjut." };
+  }
+}

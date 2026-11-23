@@ -4,6 +4,7 @@ import EditTemuanModal from "@/components/tindak-lanjut/EditTemuanModal";
 import HapusTemuanButton from "@/components/tindak-lanjut/HapusTemuanButton";
 import TindakLanjutButton from "@/components/tindak-lanjut/TindakLanjutButton";
 import EditTindakLanjutModal from "@/components/tindak-lanjut/EditTindakLanjutModal";
+import HapusTindakLanjutButton from "@/components/tindak-lanjut/HapusTindakLanjutButton";
 import BuktiDukungList from "@/components/tindak-lanjut/BuktiDukungList";
 import VerificationStatusSelect from "@/components/tindak-lanjut/VerificationStatusSelect";
 
@@ -199,7 +200,10 @@ export default async function TindakLanjutPage({ searchParams }: PageProps) {
                           <div key={report.id} className="rounded-xl border border-slate-200 p-3.5">
                             <div className="mb-3 flex items-center justify-between">
                               <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Laporan {reportIndex + 1}</p>
-                              <EditTindakLanjutModal laporanId={report.id} kondisi={item.kondisi} nilaiTemuan={item.nilai_temuan} totalSetor={item.total_setor} aksi={report.aksi_tindak_lanjut} jumlahSetor={report.jumlah_setor} />
+                              <div className="flex items-center gap-2">
+                                <EditTindakLanjutModal laporanId={report.id} kondisi={item.kondisi} nilaiTemuan={item.nilai_temuan} totalSetor={item.total_setor} aksi={report.aksi_tindak_lanjut} jumlahSetor={report.jumlah_setor} />
+                                <HapusTindakLanjutButton laporanId={report.id} laporanLabel={`Laporan ${reportIndex + 1}`} />
+                              </div>
                             </div>
                             <div>
                               <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">Aksi Tindak Lanjut</p>
