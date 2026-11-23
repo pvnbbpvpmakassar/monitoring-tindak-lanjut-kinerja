@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import EditTemuanModal from "@/components/tindak-lanjut/EditTemuanModal";
 import HapusTemuanButton from "@/components/tindak-lanjut/HapusTemuanButton";
 import TindakLanjutButton from "@/components/tindak-lanjut/TindakLanjutButton";
+import EditTindakLanjutModal from "@/components/tindak-lanjut/EditTindakLanjutModal";
 import BuktiDukungList from "@/components/tindak-lanjut/BuktiDukungList";
 import VerificationStatusSelect from "@/components/tindak-lanjut/VerificationStatusSelect";
 
@@ -48,7 +49,7 @@ export default async function TindakLanjutPage({ searchParams }: PageProps) {
 
   const totalNilaiTemuan = data.reduce((total, item) => total + item.nilai_temuan, 0);
 
-  const totalSetor = data.reduce((total, item) => total + item.jumlah_setor, 0);
+  const totalSetor = data.reduce((total, item) => total + item.total_setor, 0);
 
   const totalSisa = data.reduce((total, item) => total + Math.max(item.sisa, 0), 0);
 
@@ -191,15 +192,31 @@ export default async function TindakLanjutPage({ searchParams }: PageProps) {
                     </div>
 
                     <div className="space-y-4">
-                      <div>
-                        <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">Aksi Tindak Lanjut</p>
+                      {item.reports.length === 0 ? (
+                        <p className="text-sm italic text-slate-400">Belum ada laporan tindak lanjut.</p>
+                      ) : (
+                        item.reports.map((report, reportIndex) => (
+                          <div key={report.id} className="rounded-xl border border-slate-200 p-3.5">
+                            <div className="mb-3 flex items-center justify-between">
+                              <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Laporan {reportIndex + 1}</p>
+                              <EditTindakLanjutModal laporanId={report.id} kondisi={item.kondisi} nilaiTemuan={item.nilai_temuan} totalSetor={item.total_setor} aksi={report.aksi_tindak_lanjut} jumlahSetor={report.jumlah_setor} />
+                            </div>
+                            <div>
+                              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">Aksi Tindak Lanjut</p>
+                              <p className="whitespace-pre-line text-sm leading-6 text-slate-700">{report.aksi_tindak_lanjut}</p>
+                            </div>
+                            <div className="mt-3 border-t border-slate-100 pt-3">
+                              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Jumlah Setor</p>
+                              <p className="mt-1 text-base font-bold text-emerald-700">{formatRupiah(report.jumlah_setor)}</p>
+                            </div>
+                            <BuktiDukungList key={report.id} laporanId={report.id} />
+                          </div>
+                        ))
+                      )}
 
-                        {item.aksi_tindak_lanjut ? <p className="whitespace-pre-line text-sm leading-6 text-slate-700">{item.aksi_tindak_lanjut}</p> : <p className="text-sm italic text-slate-400">Belum ada aksi tindak lanjut.</p>}
-                      </div>
-
-                      <div className="border-t border-slate-100 pt-3">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Jumlah Setor</p>
-                        <p className="mt-1 text-lg font-bold text-emerald-700">{formatRupiah(item.jumlah_setor)}</p>
+                      <div className="rounded-lg bg-emerald-50/70 p-3">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Seluruh Setoran</p>
+                        <p className="mt-1 text-lg font-bold text-emerald-700">{formatRupiah(item.total_setor)}</p>
                       </div>
 
                       <div className="rounded-lg bg-rose-50/70 p-3">
@@ -210,32 +227,16 @@ export default async function TindakLanjutPage({ searchParams }: PageProps) {
                       <div>
                         <div className="mb-2 flex items-center justify-between">
                           <span className="text-xs font-medium text-slate-500">Progres Penyetoran</span>
-
-                          <span className="text-xs font-bold text-slate-700">{item.nilai_temuan > 0 ? Math.min((item.jumlah_setor / item.nilai_temuan) * 100, 100).toFixed(1) : item.jumlah_setor > 0 ? "100.0" : "0.0"}%</span>
+                          <span className="text-xs font-bold text-slate-700">{item.nilai_temuan > 0 ? Math.min((item.total_setor / item.nilai_temuan) * 100, 100).toFixed(1) : item.total_setor > 0 ? "100.0" : "0.0"}%</span>
                         </div>
-
                         <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-                          <div
-                            className="h-full rounded-full bg-emerald-500 transition-all"
-                            style={{
-                              width: `${item.nilai_temuan > 0 ? Math.min((item.jumlah_setor / item.nilai_temuan) * 100, 100) : item.jumlah_setor > 0 ? 100 : 0}%`,
-                            }}
-                          />
+                          <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${item.nilai_temuan > 0 ? Math.min((item.total_setor / item.nilai_temuan) * 100, 100) : item.total_setor > 0 ? 100 : 0}%` }} />
                         </div>
                       </div>
                     </div>
 
-                    <BuktiDukungList laporanId={item.laporanId} />
-
                     <div className="m-4 flex justify-end">
-                      <TindakLanjutButton
-                        temuanId={item.id}
-                        kondisi={item.kondisi}
-                        nilaiTemuan={item.nilai_temuan}
-                        aksiTindakLanjut={item.aksi_tindak_lanjut}
-                        jumlahSetor={item.jumlah_setor}
-                        sudahAdaLaporan={item.status_tindak_lanjut === "Sudah Ditindak Lanjut"}
-                      />
+                      <TindakLanjutButton temuanId={item.id} kondisi={item.kondisi} nilaiTemuan={item.nilai_temuan} totalSetor={item.total_setor} />
                     </div>
                   </section>
 
@@ -255,18 +256,27 @@ export default async function TindakLanjutPage({ searchParams }: PageProps) {
                       </div>
                     </div>
 
-                    <div className="space-y-5">
-                      <div>
-                        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Status Tindak Lanjut</p>
-
-                        <StatusBadge status={item.status_tindak_lanjut} />
-                      </div>
-
-                      <div className="border-t border-slate-100 pt-4">
-                        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Status Verifikasi Kabag Umum</p>
-
-                        <VerificationStatusSelect laporanId={item.laporanId} status={item.status_verifikasi} tanggalVerifikasi={item.tanggal_verifikasi} diverifikasiOlehNama={item.diverifikasi_oleh_nama} />
-                      </div>
+                    <div className="space-y-4">
+                      {item.reports.length === 0 ? (
+                        <div>
+                          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Status Tindak Lanjut</p>
+                          <StatusBadge status="Belum Ditindak Lanjut" />
+                        </div>
+                      ) : (
+                        item.reports.map((report, reportIndex) => (
+                          <div key={report.id} className="rounded-xl border border-slate-200 p-3.5">
+                            <p className="mb-3 text-xs font-bold uppercase tracking-wide text-slate-500">Laporan {reportIndex + 1}</p>
+                            <div>
+                              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Status Tindak Lanjut</p>
+                              <StatusBadge status="Sudah Ditindak Lanjut" />
+                            </div>
+                            <div className="mt-4 border-t border-slate-100 pt-3">
+                              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Status Verifikasi Kabag Umum</p>
+                              <VerificationStatusSelect laporanId={report.id} status={report.status_verifikasi} tanggalVerifikasi={report.tanggal_verifikasi} diverifikasiOlehNama={report.diverifikasi_oleh_nama} />
+                            </div>
+                          </div>
+                        ))
+                      )}
                     </div>
                   </section>
                 </div>
