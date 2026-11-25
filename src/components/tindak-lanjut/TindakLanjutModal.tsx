@@ -40,6 +40,10 @@ export default function TindakLanjutModal({ isOpen, onClose, onSuccess, temuanId
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState("");
 
+  const [savedLaporanIds, setSavedLaporanIds] = useState<string[] | null>(null);
+  const [uploadedFiles, setUploadedFiles] = useState<Set<string>>(new Set());
+  const [failedFiles, setFailedFiles] = useState<{ key: string; name: string; message: string }[]>([]);
+
   const totalBaru = useMemo(
     () =>
       reports.reduce((total, report) => {
@@ -49,6 +53,7 @@ export default function TindakLanjutModal({ isOpen, onClose, onSuccess, temuanId
     [reports],
   );
   const sisaSetelahInput = nilaiTemuan - totalSetor - totalBaru;
+  const isReportSaved = savedLaporanIds !== null;
 
   if (!isOpen) return null;
 
@@ -89,56 +94,141 @@ export default function TindakLanjutModal({ isOpen, onClose, onSuccess, temuanId
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
     if (isSaving) return;
+
     setMessage("");
 
-    for (let index = 0; index < reports.length; index++) {
-      if (!reports[index].aksi.trim()) {
-        setMessage(`Aksi tindak lanjut pada form ${index + 1} wajib diisi.`);
-        return;
-      }
-      const amount = reports[index].jumlahSetor;
-      if (!/^(?:0|[1-9]\d{0,17})(?:\.\d{1,2})?$/.test(amount) || !Number.isFinite(Number(amount)) || Number(amount) < 0) {
-        setMessage(`Jumlah setor pada form ${index + 1} tidak valid.`);
-        return;
-      }
-    }
+    // Laporan belum tersimpan: lakukan validasi dan simpan laporan.
+    if (!savedLaporanIds) {
+      for (let index = 0; index < reports.length; index++) {
+        if (!reports[index].aksi.trim()) {
+          setMessage(`Aksi tindak lanjut pada form ${index + 1} wajib diisi.`);
+          return;
+        }
 
-    if (totalSetor + totalBaru > nilaiTemuan) {
-      setMessage(`Total setoran melebihi nilai temuan. Sisa kewajiban yang tersedia ${formatRupiah(Math.max(0, nilaiTemuan - totalSetor))}.`);
-      return;
+        const amount = reports[index].jumlahSetor;
+
+        if (!/^(?:0|[1-9]\d{0,17})(?:\.\d{1,2})?$/.test(amount) || !Number.isFinite(Number(amount)) || Number(amount) < 0) {
+          setMessage(`Jumlah setor pada form ${index + 1} tidak valid.`);
+          return;
+        }
+      }
+
+      if (totalSetor + totalBaru > nilaiTemuan) {
+        setMessage(`Total setoran melebihi nilai temuan. Sisa kewajiban yang tersedia ${formatRupiah(Math.max(0, nilaiTemuan - totalSetor))}.`);
+        return;
+      }
     }
 
     setIsSaving(true);
-    try {
-      const formData = new FormData();
-      formData.set("temuanId", temuanId);
-      formData.set("reports", JSON.stringify(reports.map(({ aksi, jumlahSetor }) => ({ aksiTindakLanjut: aksi, jumlahSetor }))));
+    setFailedFiles([]);
 
-      const result = await saveTindakLanjutAction({ status: "idle", message: "", laporanId: null }, formData);
-      if (result.status !== "success" || !result.laporanIds?.length) {
-        throw new Error(result.message || "Gagal menyimpan tindak lanjut.");
+    try {
+      let laporanIds = savedLaporanIds;
+
+      // Simpan laporan hanya pada proses pertama.
+      // Saat retry, gunakan ID laporan yang sudah tersimpan.
+      if (!laporanIds) {
+        const formData = new FormData();
+
+        formData.set("temuanId", temuanId);
+        formData.set(
+          "reports",
+          JSON.stringify(
+            reports.map(({ aksi, jumlahSetor }) => ({
+              aksiTindakLanjut: aksi,
+              jumlahSetor,
+            })),
+          ),
+        );
+
+        const result = await saveTindakLanjutAction({ status: "idle", message: "", laporanId: null }, formData);
+
+        if (result.status !== "success" || !result.laporanIds?.length) {
+          throw new Error(result.message || "Gagal menyimpan tindak lanjut.");
+        }
+
+        laporanIds = result.laporanIds;
+
+        // Simpan ID sebelum memulai upload.
+        // Ini mencegah pembuatan laporan duplikat ketika upload gagal.
+        setSavedLaporanIds(laporanIds);
       }
 
-      let failedUploads = 0;
-      for (let index = 0; index < reports.length; index++) {
-        const laporanId = result.laporanIds[index];
-        for (const file of reports[index].files) {
+      const failures: { key: string; name: string; message: string }[] = [];
+
+      for (let reportIndex = 0; reportIndex < reports.length; reportIndex++) {
+        const report = reports[reportIndex];
+        const laporanId = laporanIds[reportIndex];
+
+        if (!laporanId) {
+          failures.push({
+            key: `${report.key}-missing`,
+            name: "Laporan " + (reportIndex + 1),
+            message: "ID laporan tidak ditemukan.",
+          });
+          continue;
+        }
+
+        for (let fileIndex = 0; fileIndex < report.files.length; fileIndex++) {
+          const file = report.files[fileIndex];
+          const fileKey = `${report.key}:${fileIndex}`;
+
+          // Jangan upload ulang file yang sudah berhasil.
+          if (uploadedFiles.has(fileKey)) continue;
+
           try {
             const uploadData = new FormData();
+
             uploadData.append("file", file);
             uploadData.append("laporanId", laporanId);
-            const response = await fetch("/api/bukti-dukung", { method: "POST", body: uploadData });
-            const uploadResult = await response.json();
-            if (!response.ok || !uploadResult.success) throw new Error(uploadResult.message || "Upload file gagal.");
+
+            const response = await fetch("/api/bukti-dukung", {
+              method: "POST",
+              body: uploadData,
+            });
+
+            const uploadResult = await response.json().catch(() => null);
+
+            if (!response.ok || !uploadResult?.success) {
+              throw new Error(uploadResult?.message || `Upload gagal dengan status HTTP ${response.status}.`);
+            }
+
+            setUploadedFiles((previous) => {
+              const next = new Set(previous);
+              next.add(fileKey);
+              return next;
+            });
+
+            // Beri tahu komponen daftar untuk mengambil ulang data.
+            window.dispatchEvent(
+              new CustomEvent("bukti-dukung:updated", {
+                detail: { laporanId },
+              }),
+            );
           } catch (error) {
-            failedUploads++;
+            const errorMessage = error instanceof Error ? error.message : "Terjadi kesalahan saat mengunggah file.";
+
+            failures.push({
+              key: fileKey,
+              name: file.name,
+              message: errorMessage,
+            });
+
             console.error(`Upload ${file.name} gagal:`, error);
           }
         }
       }
 
-      onSuccess(failedUploads > 0 ? `${result.laporanIds.length} laporan tersimpan. ${failedUploads} file bukti dukung gagal diunggah.` : `${result.laporanIds.length} laporan tindak lanjut dan seluruh bukti dukung berhasil disimpan.`);
+      setFailedFiles(failures);
+
+      if (failures.length > 0) {
+        setMessage(`${laporanIds.length} laporan sudah tersimpan, tetapi ${failures.length} file gagal diunggah. Periksa detailnya dan coba ulang.`);
+        return;
+      }
+
+      onSuccess(`${laporanIds.length} laporan tindak lanjut dan seluruh bukti dukung berhasil disimpan.`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Terjadi kesalahan saat menyimpan data.");
     } finally {
@@ -156,7 +246,7 @@ export default function TindakLanjutModal({ isOpen, onClose, onSuccess, temuanId
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={onClose}
-          disabled={isSaving}
+          disabled={isSaving || isReportSaved}
           className="fixed inset-0 cursor-default bg-slate-950/60 backdrop-blur-sm"
         />
         <motion.div
@@ -176,7 +266,7 @@ export default function TindakLanjutModal({ isOpen, onClose, onSuccess, temuanId
               </h2>
               <p className="mt-1 text-sm text-slate-500">Satu temuan dapat memiliki beberapa laporan tindak lanjut.</p>
             </div>
-            <button type="button" onClick={onClose} disabled={isSaving} className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50" aria-label="Tutup modal">
+            <button type="button" onClick={onClose} disabled={isSaving || isReportSaved} className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50" aria-label="Tutup modal">
               <X size={20} />
             </button>
           </div>
@@ -208,7 +298,7 @@ export default function TindakLanjutModal({ isOpen, onClose, onSuccess, temuanId
                   {reports.length > 1 && (
                     <button
                       type="button"
-                      disabled={isSaving}
+                      disabled={isSaving || isReportSaved}
                       onClick={() => setReports((previous) => previous.filter((item) => item.key !== report.key))}
                       className="inline-flex items-center gap-1.5 text-xs font-medium text-rose-600 hover:text-rose-700"
                     >
@@ -228,7 +318,7 @@ export default function TindakLanjutModal({ isOpen, onClose, onSuccess, temuanId
                     rows={4}
                     maxLength={30000}
                     required
-                    disabled={isSaving}
+                    disabled={isSaving || isReportSaved}
                     placeholder="Tuliskan uraian tindakan yang telah dilakukan..."
                     className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-[#15406A] focus:ring-2 focus:ring-[#15406A]/10"
                   />
@@ -246,7 +336,7 @@ export default function TindakLanjutModal({ isOpen, onClose, onSuccess, temuanId
                     step="0.01"
                     required
                     value={report.jumlahSetor}
-                    disabled={isSaving}
+                    disabled={isSaving || isReportSaved}
                     onChange={(event) => updateReport(report.key, { jumlahSetor: event.target.value })}
                     placeholder="Masukkan jumlah setor"
                     className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-[#15406A] focus:ring-2 focus:ring-[#15406A]/10"
@@ -271,7 +361,7 @@ export default function TindakLanjutModal({ isOpen, onClose, onSuccess, temuanId
                     type="file"
                     multiple
                     accept=".jpg,.jpeg,.png,.webp,.pdf"
-                    disabled={isSaving || report.files.length >= MAX_FILES}
+                    disabled={isSaving || isReportSaved || report.files.length >= MAX_FILES}
                     onChange={(event) => handleFileChange(report.key, event)}
                     className="hidden"
                   />
@@ -284,7 +374,13 @@ export default function TindakLanjutModal({ isOpen, onClose, onSuccess, temuanId
                             <p className="truncate text-sm font-medium text-slate-700">{file.name}</p>
                             <p className="text-xs text-slate-400">{(file.size / 1024).toFixed(1)} KB</p>
                           </div>
-                          <button type="button" onClick={() => removeFile(report.key, fileIndex)} disabled={isSaving} className="rounded-lg p-2 text-slate-400 transition hover:bg-red-50 hover:text-red-600" aria-label={`Hapus ${file.name}`}>
+                          <button
+                            type="button"
+                            onClick={() => removeFile(report.key, fileIndex)}
+                            disabled={isSaving || isReportSaved}
+                            className="rounded-lg p-2 text-slate-400 transition hover:bg-red-50 hover:text-red-600"
+                            aria-label={`Hapus ${file.name}`}
+                          >
                             <Trash2 size={15} />
                           </button>
                         </div>
@@ -297,7 +393,7 @@ export default function TindakLanjutModal({ isOpen, onClose, onSuccess, temuanId
 
             <button
               type="button"
-              disabled={isSaving || reports.length >= MAX_REPORTS}
+              disabled={isSaving || isReportSaved || reports.length >= MAX_REPORTS}
               onClick={() => setReports((previous) => [...previous, createReport()])}
               className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-[#15406A]/40 bg-blue-50/50 px-4 py-3 text-sm font-semibold text-[#15406A] transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
@@ -321,22 +417,41 @@ export default function TindakLanjutModal({ isOpen, onClose, onSuccess, temuanId
               </div>
             )}
 
+            {failedFiles.length > 0 && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                <p className="text-sm font-semibold text-amber-800">File yang belum berhasil diunggah</p>
+
+                <div className="mt-3 space-y-3">
+                  {failedFiles.map((file) => (
+                    <div key={file.key} className="text-sm">
+                      <p className="font-medium text-slate-800">{file.name}</p>
+                      <p className="mt-0.5 text-xs text-rose-600">{file.message}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <p className="mt-3 text-xs text-amber-800">File yang sudah berhasil diunggah tidak akan dikirim ulang.</p>
+              </div>
+            )}
+
             <div className="flex justify-end gap-3 border-t border-slate-200 pt-5">
-              <button type="button" onClick={onClose} disabled={isSaving} className="rounded-xl border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-50">
+              <button type="button" onClick={onClose} disabled={isSaving || isReportSaved} className="rounded-xl border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-50">
                 Batal
               </button>
               <button
                 type="submit"
-                disabled={isSaving || sisaSetelahInput < 0}
+                disabled={isSaving || (!isReportSaved && sisaSetelahInput < 0)}
                 className="flex items-center gap-2 rounded-xl bg-[#15406A] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#103454] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isSaving ? (
                   <>
-                    <LoaderCircle size={17} className="animate-spin" /> Menyimpan...
+                    <LoaderCircle size={17} className="animate-spin" />
+                    {isReportSaved ? "Mengunggah Bukti..." : "Menyimpan..."}
                   </>
                 ) : (
                   <>
-                    <Save size={17} /> Simpan {reports.length} Laporan
+                    <Save size={17} />
+                    {isReportSaved ? "Coba Ulang Upload" : `Simpan ${reports.length} Laporan`}
                   </>
                 )}
               </button>

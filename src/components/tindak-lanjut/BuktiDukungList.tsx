@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { FileText, Image as ImageIcon, X, LoaderCircle, AlertCircle, Trash2, AlertTriangle, CheckCircle2 } from "lucide-react";
@@ -45,56 +45,103 @@ export default function BuktiDukungList({ laporanId }: BuktiDukungListProps) {
   const [deleteError, setDeleteError] = useState("");
   const [toast, setToast] = useState<ToastMessage | null>(null);
 
-  useEffect(() => {
-    if (typeof laporanId !== "string" || laporanId.trim() === "") {
+  // Menyimpan request aktif agar dapat dibatalkan ketika laporan berubah.
+  const activeRequestRef = useRef<AbortController | null>(null);
+
+  // Mengambil daftar bukti dukung.
+  const loadFiles = useCallback(async () => {
+    if (typeof laporanId !== "string" || !laporanId.trim()) {
       return;
     }
 
-    const currentLaporanId = laporanId;
+    // Batalkan request sebelumnya jika masih berjalan.
+    activeRequestRef.current?.abort();
+
     const controller = new AbortController();
+    activeRequestRef.current = controller;
 
-    async function loadFiles() {
-      setIsLoading(true);
-      setError("");
+    setIsLoading(true);
+    setError("");
 
-      try {
-        const response = await fetch(`/api/bukti-dukung?laporanId=${encodeURIComponent(currentLaporanId)}`, {
-          method: "GET",
-          cache: "no-store",
-          signal: controller.signal,
-        });
+    try {
+      const response = await fetch(`/api/bukti-dukung?laporanId=${encodeURIComponent(laporanId)}`, {
+        method: "GET",
+        cache: "no-store",
+        signal: controller.signal,
+      });
 
-        const result: ApiResponse = await response.json();
+      const result: ApiResponse = await response.json();
 
-        if (!response.ok || !result.success) {
-          throw new Error(result.message || "Gagal mengambil bukti dukung.");
-        }
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || "Gagal mengambil bukti dukung.");
+      }
 
-        if (!Array.isArray(result.data)) {
-          throw new Error("Format data bukti dukung tidak valid.");
-        }
+      if (!Array.isArray(result.data)) {
+        throw new Error("Format data bukti dukung tidak valid.");
+      }
 
+      if (!controller.signal.aborted) {
         setFiles(result.data);
-      } catch (err) {
-        if (err instanceof Error && err.name === "AbortError") {
-          return;
-        }
+      }
+    } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") {
+        return;
+      }
 
+      if (!controller.signal.aborted) {
         setError(err instanceof Error ? err.message : "Gagal mengambil daftar bukti dukung.");
-      } finally {
-        if (!controller.signal.aborted) {
-          setIsLoading(false);
-        }
+      }
+    } finally {
+      if (activeRequestRef.current === controller) {
+        activeRequestRef.current = null;
+        setIsLoading(false);
+      }
+    }
+  }, [laporanId]);
+
+  // Memuat data ketika komponen pertama kali ditampilkan
+  // atau ketika laporanId berubah.
+  useEffect(() => {
+    if (typeof laporanId !== "string" || !laporanId.trim()) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      loadFiles();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+
+      activeRequestRef.current?.abort();
+      activeRequestRef.current = null;
+    };
+  }, [laporanId, loadFiles]);
+
+  // Mendengarkan event setelah upload bukti dukung berhasil.
+  useEffect(() => {
+    if (typeof laporanId !== "string" || !laporanId.trim()) {
+      return;
+    }
+
+    function handleBuktiDukungUpdated(event: Event) {
+      const customEvent = event as CustomEvent<{
+        laporanId: string;
+      }>;
+
+      if (customEvent.detail?.laporanId === laporanId) {
+        loadFiles();
       }
     }
 
-    loadFiles();
+    window.addEventListener("bukti-dukung:updated", handleBuktiDukungUpdated);
 
     return () => {
-      controller.abort();
+      window.removeEventListener("bukti-dukung:updated", handleBuktiDukungUpdated);
     };
-  }, [laporanId]);
+  }, [laporanId, loadFiles]);
 
+  // Menghilangkan notifikasi secara otomatis.
   useEffect(() => {
     if (!toast) return;
 
@@ -105,7 +152,10 @@ export default function BuktiDukungList({ laporanId }: BuktiDukungListProps) {
     return () => window.clearTimeout(timeout);
   }, [toast]);
 
-  if (!laporanId) return null;
+  // Tidak menampilkan komponen jika ID laporan tidak tersedia.
+  if (!laporanId?.trim()) {
+    return null;
+  }
 
   const selectedIndex = selectedFile ? files.findIndex((file) => file.id === selectedFile.id) + 1 : 0;
 
@@ -123,6 +173,7 @@ export default function BuktiDukungList({ laporanId }: BuktiDukungListProps) {
     setDeleteError("");
   }
 
+  // Menghapus bukti dukung.
   async function handleDelete() {
     if (!confirmDelete || deletingId) return;
 
@@ -210,9 +261,13 @@ export default function BuktiDukungList({ laporanId }: BuktiDukungListProps) {
         )}
 
         {error && (
-          <div className="mt-2 flex items-center gap-2 text-xs text-rose-600">
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-rose-600">
             <AlertCircle size={14} />
-            {error}
+            <span>{error}</span>
+
+            <button type="button" onClick={loadFiles} disabled={isLoading} className="font-semibold underline underline-offset-2 disabled:opacity-50">
+              Coba muat ulang
+            </button>
           </div>
         )}
       </div>
