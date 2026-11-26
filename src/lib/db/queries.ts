@@ -93,29 +93,54 @@ export async function getTindakLanjutByYear(tahun: number): Promise<TindakLanjut
       v.nilai_temuan,
       MAX(v.total_setor) AS total_setor,
       MAX(v.sisa) AS sisa,
-      CASE WHEN COUNT(v.laporan_id) = 0 THEN 'Belum Ditindak Lanjut' ELSE 'Sudah Ditindak Lanjut' END AS status_tindak_lanjut,
+      CASE
+        WHEN COUNT(v.laporan_id) = 0
+          THEN 'Belum Ditindak Lanjut'
+        ELSE 'Sudah Ditindak Lanjut'
+      END AS status_tindak_lanjut,
       t.created_at,
       l.id AS laporan_id,
       l.aksi_tindak_lanjut,
       l.jumlah_setor,
       l.status_verifikasi,
       l.tanggal_verifikasi,
+      l.urutan,
       a.nama AS diverifikasi_oleh_nama
     FROM v_monitoring_tindak_lanjut v
-    INNER JOIN temuan t ON t.id = v.temuan_id
-    LEFT JOIN laporan_tindak_lanjut l ON l.id = v.laporan_id
-    LEFT JOIN admins a ON a.id = l.diverifikasi_oleh
+    INNER JOIN temuan t
+      ON t.id = v.temuan_id
+    LEFT JOIN laporan_tindak_lanjut l
+      ON l.id = v.laporan_id
+    LEFT JOIN admins a
+      ON a.id = l.diverifikasi_oleh
     WHERE v.tahun = ${tahun}
     GROUP BY
-      v.temuan_id, v.kondisi, v.rekomendasi, v.nilai_temuan, t.created_at,
-      l.id, l.aksi_tindak_lanjut, l.jumlah_setor, l.status_verifikasi,
-      l.tanggal_verifikasi, a.nama
-    ORDER BY t.created_at ASC, v.temuan_id ASC, l.created_at ASC NULLS FIRST
+      v.temuan_id,
+      v.kondisi,
+      v.rekomendasi,
+      v.nilai_temuan,
+      t.created_at,
+      l.id,
+      l.aksi_tindak_lanjut,
+      l.jumlah_setor,
+      l.status_verifikasi,
+      l.tanggal_verifikasi,
+      l.urutan,
+      l.created_at,
+      a.nama
+    ORDER BY
+      t.created_at ASC,
+      v.temuan_id ASC,
+      l.urutan ASC NULLS LAST,
+      l.created_at ASC NULLS LAST,
+      l.id ASC
   `;
 
   const grouped = new Map<string, TindakLanjutRow>();
+
   for (const row of result) {
     const id = String(row.temuan_id);
+
     if (!grouped.has(id)) {
       grouped.set(id, {
         id,
@@ -142,5 +167,16 @@ export async function getTindakLanjutByYear(tahun: number): Promise<TindakLanjut
     }
   }
 
+  console.log(
+    "URUTAN LAPORAN DARI DATABASE:",
+    result
+      .filter((row) => row.temuan_id === "ef9d3855-242d-41ed-a987-2043297163da")
+      .map((row) => ({
+        urutan: row.urutan,
+        aksi: row.aksi_tindak_lanjut,
+      })),
+  );
+  
   return Array.from(grouped.values());
+
 }
