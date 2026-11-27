@@ -85,7 +85,16 @@ export default function EditTindakLanjutModal({ laporanId, kondisi, nilaiTemuan,
           uploadData.append("laporanId", laporanId);
           const response = await fetch("/api/bukti-dukung", { method: "POST", body: uploadData });
           const uploadResult = await response.json();
-          if (!response.ok || !uploadResult.success) throw new Error(uploadResult.message || "Upload gagal.");
+          if (!response.ok || !uploadResult.success) {
+            throw new Error(uploadResult.message || "Upload gagal.");
+          }
+
+          // Beri tahu komponen daftar untuk mengambil ulang data.
+          window.dispatchEvent(
+            new CustomEvent("bukti-dukung:updated", {
+              detail: { laporanId },
+            }),
+          );
         } catch (error) {
           failed++;
           console.error(`Upload ${file.name} gagal:`, error);
