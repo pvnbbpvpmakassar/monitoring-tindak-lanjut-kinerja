@@ -144,22 +144,27 @@ export async function saveTindakLanjutAction(_previousState: TindakLanjutState, 
         JOIN target t ON t.id = l.temuan_id
       ),
 
-      incoming AS MATERIALIZED (
-        SELECT
-          x.id,
-          x.aksi,
-          x."jumlahSetor",
-          x.ordinality
-        FROM jsonb_to_recordset(
+          incoming AS MATERIALIZED (
+      SELECT
+        x.id,
+        x.aksi,
+        x."jumlahSetor",
+        x.ordinality
+      FROM ROWS FROM (
+        jsonb_to_recordset(
           ${JSON.stringify(normalized)}::jsonb
-        )
-        WITH ORDINALITY AS x(
+        ) AS (
           id uuid,
           aksi text,
-          "jumlahSetor" numeric,
-          ordinality bigint
+          "jumlahSetor" numeric
         )
-      ),
+      ) WITH ORDINALITY AS x(
+        id,
+        aksi,
+        "jumlahSetor",
+        ordinality
+      )
+    ),
 
       validation AS MATERIALIZED (
         SELECT
